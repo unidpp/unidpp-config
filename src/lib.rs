@@ -209,6 +209,10 @@ pub struct ServiceCommon {
     /// The journal/state file (services that persist one).
     #[serde(default)]
     pub state_file: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it
+    /// (e.g. `https://registry.unidpp.org`). Absent = loopback-only.
+    #[serde(default)]
+    pub public_url: Option<String>,
 }
 
 /// The transparency log (adds the external anchor knob).
@@ -223,6 +227,10 @@ pub struct LogService {
     /// The log's identity.
     #[serde(default = "default_log_id")]
     pub log_id: String,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+
     /// RFC 3161 TSA endpoint; absent = no external anchoring.
     #[serde(default)]
     pub external_tsa_url: Option<String>,
@@ -245,6 +253,10 @@ pub struct IssuerService {
     /// co-signature set (e.g. `["ecdsa-p256", "sm2"]`).
     #[serde(default = "default_pack_suites")]
     pub pack_suites: Vec<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+
     /// The registry to forward registrations to.
     #[serde(default)]
     pub registry_url: Option<String>,
@@ -264,6 +276,9 @@ pub struct GatewayService {
     /// The issuer upstream whose passports the gateway renders.
     #[serde(default)]
     pub issuer_url: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
 }
 
 /// Cross-cutting toggles (absent = the documented default).
@@ -460,6 +475,22 @@ impl OperatorManifest {
             }
         }
         Ok(())
+    }
+
+    /// A service's public URL when the manifest declares one.
+    pub fn service_public_url(&self, name: &str) -> Option<String> {
+        let s = &self.services;
+        match name {
+            "registry" => s.registry.as_ref()?.public_url.clone(),
+            "trust" => s.trust.as_ref()?.public_url.clone(),
+            "log" => s.log.as_ref()?.public_url.clone(),
+            "issuer" => s.issuer.as_ref()?.public_url.clone(),
+            "projector" => s.projector.as_ref()?.public_url.clone(),
+            "gateway" => s.gateway.as_ref()?.public_url.clone(),
+            "archive" => s.archive.as_ref()?.public_url.clone(),
+            "console" => s.console.as_ref()?.public_url.clone(),
+            _ => None,
+        }
     }
 
     /// The service names this deployment runs (manifest order).
@@ -777,6 +808,31 @@ sovereignty:
         );
         let err = load(&leaking_log).unwrap_err();
         assert!(err.0.contains("does not match the schema"), "{err}");
+    }
+
+    #[test]
+    fn public_url_is_optional_and_addressable_per_service() {
+        with_env(&[], || {
+            let manifest = load(REFERENCE).unwrap();
+            assert_eq!(manifest.service_public_url("registry"), None);
+            // A declared public URL parses and is addressable; absent
+            // services and unknown names answer None.
+            let declared = load(&REFERENCE.replace(
+                "    bind: 127.0.0.1:8390",
+                "    bind: 127.0.0.1:8390\n    public_url: https://registry.unidpp.org",
+            ))
+            .unwrap();
+            assert_eq!(
+                declared.service_public_url("registry").as_deref(),
+                Some("https://registry.unidpp.org")
+            );
+            assert_eq!(declared.service_public_url("log"), None);
+            assert_eq!(declared.service_public_url("billing"), None);
+            assert_eq!(
+                declared.service_names().len(),
+                manifest.service_names().len()
+            );
+        });
     }
 
     #[test]
