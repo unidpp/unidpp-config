@@ -110,6 +110,11 @@ pub struct Branding {
     /// A logo the console/explorer serve (path or data URI).
     #[serde(default)]
     pub logo: Option<String>,
+    /// The console chrome's language (the whitelabel surface speaks
+    /// the tenant's language; adding one is a table entry in the
+    /// console's i18n module, not a code change).
+    #[serde(default = "default_locale")]
+    pub locale: String,
     /// The theme (hex colors; validated).
     #[serde(default)]
     pub theme: Theme,
@@ -124,10 +129,19 @@ impl Default for Branding {
             organization: default_organization(),
             product_name: default_product(),
             logo: None,
+            locale: default_locale(),
             theme: Theme::default(),
             footer: Footer::default(),
         }
     }
+}
+
+/// The locales the console's i18n table ships (a new language is a
+/// table entry there plus this list).
+pub const SUPPORTED_LOCALES: &[&str] = &["en", "zh-CN"];
+
+fn default_locale() -> String {
+    "en".to_string()
 }
 
 fn default_organization() -> String {
@@ -430,6 +444,12 @@ impl OperatorManifest {
         }
         hex_color("branding.theme.primary", &self.branding.theme.primary)?;
         hex_color("branding.theme.accent", &self.branding.theme.accent)?;
+        if !SUPPORTED_LOCALES.contains(&self.branding.locale.as_str()) {
+            return Err(ConfigError(format!(
+                "branding.locale `{}` is not one of {:?}",
+                self.branding.locale, SUPPORTED_LOCALES
+            )));
+        }
         if let Some(issuer) = &self.services.issuer {
             for suite in &issuer.pack_suites {
                 if suite.trim().is_empty() {
@@ -845,6 +865,20 @@ sovereignty:
         );
         let err = load(&leaking_log).unwrap_err();
         assert!(err.0.contains("does not match the schema"), "{err}");
+    }
+
+    #[test]
+    fn locale_defaults_validates_and_refuses_unknowns() {
+        with_env(&[], || {
+            let manifest = load(REFERENCE).unwrap();
+            assert_eq!(manifest.branding.locale, "en");
+            let zh =
+                load(&REFERENCE.replace("branding:\n", "branding:\n  locale: zh-CN\n")).unwrap();
+            assert_eq!(zh.branding.locale, "zh-CN");
+            let err = load(&REFERENCE.replace("branding:\n", "branding:\n  locale: klingon\n"))
+                .unwrap_err();
+            assert!(err.0.contains("branding.locale"), "{err}");
+        });
     }
 
     #[test]
