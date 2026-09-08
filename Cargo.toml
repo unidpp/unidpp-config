@@ -1,0 +1,13 @@
+[package]
+name = "unidpp-config"
+description = "The UniDPP operator manifest: one versioned, validated file that configures every service of a deployment — binds, tokens (env-substituted), feature toggles, crypto suites, branding, sovereignty profile"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/unidpp/unidpp-config"
+rust-version = "1.75"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
