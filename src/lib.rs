@@ -24,6 +24,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The manifest's API version (the only one this crate speaks).
@@ -34,7 +35,7 @@ pub const API_VERSION: &str = "unidpp.org/v1";
 // ---------------------------------------------------------------------------
 
 /// A complete deployment declaration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct OperatorManifest {
     /// Must equal [`API_VERSION`].
@@ -56,7 +57,7 @@ pub struct OperatorManifest {
 }
 
 /// The deployment identity and shape.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Deployment {
     /// The deployment's name (tenant name; unique per operator).
@@ -69,7 +70,7 @@ pub struct Deployment {
 }
 
 /// Deployment profiles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Profile {
     /// The hosted reference deployment.
@@ -97,7 +98,7 @@ impl fmt::Display for Profile {
 }
 
 /// The whitelabel surface.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Branding {
     /// The operating organization's legal/display name.
@@ -138,7 +139,7 @@ fn default_product() -> String {
 }
 
 /// Theme colors (six-digit hex, `#`-prefixed).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Theme {
     #[serde(default = "default_primary")]
@@ -165,7 +166,7 @@ fn default_accent() -> String {
 }
 
 /// Footer links (legal, contact).
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Footer {
     #[serde(default)]
@@ -176,7 +177,7 @@ pub struct Footer {
 
 /// Every service block. Absent service = that service is not part of
 /// this deployment.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields, default)]
 pub struct Services {
     #[serde(default)]
@@ -198,7 +199,7 @@ pub struct Services {
 }
 
 /// The knobs every service shares.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ServiceCommon {
     /// `host:port` to bind.
@@ -216,7 +217,7 @@ pub struct ServiceCommon {
 }
 
 /// The transparency log (adds the external anchor knob).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LogService {
     pub bind: String,
@@ -241,7 +242,7 @@ fn default_log_id() -> String {
 }
 
 /// The issuer (adds the pack-suite policy).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct IssuerService {
     pub bind: String,
@@ -267,7 +268,7 @@ fn default_pack_suites() -> Vec<String> {
 }
 
 /// The gateway (adds the upstream).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayService {
     pub bind: String,
@@ -282,7 +283,7 @@ pub struct GatewayService {
 }
 
 /// Cross-cutting toggles (absent = the documented default).
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields, default)]
 pub struct Features {
     /// Accept UNTP ingest on the gateway (default true).
@@ -302,7 +303,7 @@ fn yes() -> bool {
 }
 
 /// The sovereignty declaration: what may leave the box.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Sovereignty {
     /// The jurisdiction this deployment pins data to (`EU`, `JP`, ...).
@@ -332,7 +333,7 @@ fn no_egress() -> EgressPolicy {
 }
 
 /// The egress policy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum EgressPolicy {
     /// Nothing leaves the box.
@@ -475,6 +476,42 @@ impl OperatorManifest {
             }
         }
         Ok(())
+    }
+
+    /// The operator manifest as a JSON Schema (draft 2020-12),
+    /// derived from the model itself — never hand-maintained. The
+    /// `deny_unknown_fields` doctrine is imposed on every object node
+    /// (`additionalProperties: false`), keeping the published schema
+    /// exactly as strict as `load`. The schema describes SHAPE;
+    /// semantic validation (env-substituted secrets, hex colors, the
+    /// sovereign egress rule) stays with [`load`]/[`OperatorManifest::validate`].
+    pub fn json_schema() -> serde_json::Value {
+        let mut schema = schemars::schema_for!(OperatorManifest).to_value();
+        fn deny_unknown(node: &mut serde_json::Value) {
+            let obj = match node.as_object_mut() {
+                Some(o) => o,
+                None => return,
+            };
+            if obj.contains_key("properties") || obj.contains_key("items") {
+                obj.entry("additionalProperties")
+                    .or_insert(serde_json::Value::Bool(false));
+            }
+            for (_k, v) in obj.iter_mut() {
+                deny_unknown(v);
+            }
+        }
+        deny_unknown(&mut schema);
+        if let Some(o) = schema.as_object_mut() {
+            o.insert(
+                "$schema".into(),
+                serde_json::json!("https://json-schema.org/draft/2020-12/schema"),
+            );
+            o.insert(
+                "title".into(),
+                serde_json::json!("UniDPP operator manifest (unidpp.org/v1)"),
+            );
+        }
+        schema
     }
 
     /// A service's public URL when the manifest declares one.
@@ -808,6 +845,42 @@ sovereignty:
         );
         let err = load(&leaking_log).unwrap_err();
         assert!(err.0.contains("does not match the schema"), "{err}");
+    }
+
+    #[test]
+    fn json_schema_is_strict_and_model_complete() {
+        let schema = OperatorManifest::json_schema();
+        assert_eq!(
+            schema["$schema"],
+            "https://json-schema.org/draft/2020-12/schema"
+        );
+        // Every model field the schema knows (spot the newest one).
+        let common = &schema["$defs"]["ServiceCommon"]["properties"];
+        assert!(common.get("public_url").is_some());
+        assert!(common.get("bind").is_some());
+        // The deny_unknown_fields doctrine holds on every object node
+        // with properties — as strict as `load`, never looser.
+        fn walk(node: &serde_json::Value) -> usize {
+            let mut loose = 0;
+            if let Some(obj) = node.as_object() {
+                if obj.contains_key("properties")
+                    && obj.get("additionalProperties") != Some(&serde_json::Value::Bool(false))
+                {
+                    loose += 1;
+                }
+                for v in obj.values() {
+                    loose += walk(v);
+                }
+            } else if let Some(arr) = node.as_array() {
+                for v in arr {
+                    loose += walk(v);
+                }
+            }
+            loose
+        }
+        assert_eq!(walk(&schema), 0, "no object node may accept unknown fields");
+        // And the schema itself serializes (it is serde data).
+        assert!(serde_json::to_string(&schema).is_ok());
     }
 
     #[test]

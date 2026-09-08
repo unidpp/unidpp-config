@@ -38,6 +38,14 @@ fn main() -> ExitCode {
                 .and_then(|m| unidpp_config::render_env(&m, &args[1]))
                 .map(|env| println!("{env}"))
         }
+        Some("schema") if args.len() == 1 => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&unidpp_config::OperatorManifest::json_schema())
+                    .expect("the schema is serde data")
+            );
+            Ok(())
+        }
         Some("services") if args.len() == 2 => {
             let text = read(&args[1]);
             unidpp_config::load(&text).map(|m| println!("{}", m.service_names().join("\n")))
