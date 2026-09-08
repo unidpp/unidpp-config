@@ -869,7 +869,7 @@ sovereignty:
 
     #[test]
     fn locale_defaults_validates_and_refuses_unknowns() {
-        with_env(&[], || {
+        with_env(&[("TEST_ADMIN_TOKEN", "x")], || {
             let manifest = load(REFERENCE).unwrap();
             assert_eq!(manifest.branding.locale, "en");
             let zh =
