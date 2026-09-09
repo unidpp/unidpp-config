@@ -210,6 +210,8 @@ pub struct Services {
     pub archive: Option<ServiceCommon>,
     #[serde(default)]
     pub console: Option<ServiceCommon>,
+    #[serde(default)]
+    pub resolver: Option<ResolverService>,
 }
 
 /// The knobs every service shares.
@@ -294,6 +296,31 @@ pub struct GatewayService {
     /// The service's public URL when a tunnel/ingress fronts it.
     #[serde(default)]
     pub public_url: Option<String>,
+}
+
+/// The resolver (the identifier-resolution service; its knobs are
+/// its own — the binary's env names are the generic UNIDPP_ ones it
+/// has always read, unchanged).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ResolverService {
+    pub bind: String,
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    #[serde(default)]
+    pub state_file: Option<String>,
+    /// National-intermediary mode: the upstream resolver base URL.
+    #[serde(default)]
+    pub upstream: Option<String>,
+    #[serde(default = "default_cache_ttl")]
+    pub cache_ttl_secs: i64,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+}
+
+fn default_cache_ttl() -> i64 {
+    300
 }
 
 /// Cross-cutting toggles (absent = the documented default).
@@ -546,6 +573,7 @@ impl OperatorManifest {
             "gateway" => s.gateway.as_ref()?.public_url.clone(),
             "archive" => s.archive.as_ref()?.public_url.clone(),
             "console" => s.console.as_ref()?.public_url.clone(),
+            "resolver" => s.resolver.as_ref()?.public_url.clone(),
             _ => None,
         }
     }
@@ -577,6 +605,9 @@ impl OperatorManifest {
         }
         if s.console.is_some() {
             names.push("console");
+        }
+        if s.resolver.is_some() {
+            names.push("resolver");
         }
         names
     }
@@ -621,6 +652,26 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
                 .as_ref()
                 .ok_or_else(|| ConfigError("this deployment has no registry block".into()))?;
             common(&mut vars, "REGISTRY", c);
+        }
+        "resolver" => {
+            // The resolver reads the generic UNIDPP_ names it has
+            // always read — the manifest declares, the binary is
+            // unchanged.
+            let c = services
+                .resolver
+                .as_ref()
+                .ok_or_else(|| ConfigError("this deployment has no resolver block".into()))?;
+            vars.insert("UNIDPP_BIND".into(), c.bind.clone());
+            if let Some(token) = &c.admin_token {
+                vars.insert("UNIDPP_ADMIN_TOKEN".into(), token.clone());
+            }
+            if let Some(state) = &c.state_file {
+                vars.insert("UNIDPP_STATE_FILE".into(), state.clone());
+            }
+            if let Some(upstream) = &c.upstream {
+                vars.insert("UNIDPP_UPSTREAM".into(), upstream.clone());
+            }
+            vars.insert("UNIDPP_CACHE_TTL".into(), c.cache_ttl_secs.to_string());
         }
         "trust" => {
             let c = services
@@ -878,6 +929,27 @@ sovereignty:
             let err = load(&REFERENCE.replace("branding:\n", "branding:\n  locale: klingon\n"))
                 .unwrap_err();
             assert!(err.0.contains("branding.locale"), "{err}");
+        });
+    }
+
+    #[test]
+    fn resolver_block_renders_the_binarys_own_env_names() {
+        with_env(&[("TEST_ADMIN_TOKEN", "x")], || {
+            let text = REFERENCE.replace(
+                "services:\n",
+                "services:\n  resolver:\n    bind: 127.0.0.1:8397\n    upstream: http://127.0.0.1:8080\n    cache_ttl_secs: 60\n",
+            );
+            let manifest = load(&text).unwrap();
+            assert!(manifest.service_names().contains(&"resolver"));
+            let env = render_env(&manifest, "resolver").unwrap();
+            assert!(env.contains("UNIDPP_BIND=127.0.0.1:8397"), "{env}");
+            assert!(
+                env.contains("UNIDPP_UPSTREAM=http://127.0.0.1:8080"),
+                "{env}"
+            );
+            assert!(env.contains("UNIDPP_CACHE_TTL=60"), "{env}");
+            // No block, no render.
+            assert!(render_env(&load(REFERENCE).unwrap(), "resolver").is_err());
         });
     }
 
