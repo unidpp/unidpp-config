@@ -215,7 +215,35 @@ pub struct Services {
     /// The translation hub (stateless signed relay; no state file —
     /// nothing persists).
     #[serde(default)]
-    pub hub: Option<ServiceCommon>,
+    pub hub: Option<HubService>,
+}
+
+/// The translation hub: a stateless signed relay whose only real
+/// knobs are its identity and its relay-signing seed. No state file
+/// (after a relay the hub holds nothing); no admin surface (no
+/// mutations to gate).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HubService {
+    /// `host:port` to bind.
+    pub bind: String,
+    /// Future-proof: the hub has no mutations to gate today.
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    /// The hub's trust-graph node id (what relay signatures name).
+    #[serde(default = "default_hub_id")]
+    pub hub_id: String,
+    /// The relay-signing seed (an `${VAR}` reference in production;
+    /// absent = seeded-dev mode, which says so on every start).
+    #[serde(default)]
+    pub seed: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+}
+
+fn default_hub_id() -> String {
+    "unidpp-hub-1".to_string()
 }
 
 /// The knobs every service shares.
@@ -758,6 +786,20 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
                 .ok_or_else(|| ConfigError("this deployment has no console block".into()))?;
             common(&mut vars, "CONSOLE", c);
         }
+        "hub" => {
+            let c = services
+                .hub
+                .as_ref()
+                .ok_or_else(|| ConfigError("this deployment has no hub block".into()))?;
+            vars.insert("UNIDPP_HUB_BIND".into(), c.bind.clone());
+            vars.insert("UNIDPP_HUB_ID".into(), c.hub_id.clone());
+            if let Some(token) = &c.admin_token {
+                vars.insert("UNIDPP_HUB_ADMIN_TOKEN".into(), token.clone());
+            }
+            if let Some(seed) = &c.seed {
+                vars.insert("UNIDPP_HUB_SEED".into(), seed.clone());
+            }
+        }
         other => {
             return Err(ConfigError(format!(
                 "unknown service `{other}` (expected one of {:?})",
@@ -802,6 +844,10 @@ services:
   gateway:
     bind: 127.0.0.1:8395
     issuer_url: http://127.0.0.1:8393
+  hub:
+    bind: 127.0.0.1:8397
+    hub_id: unidpp-hub-pilot
+    seed: test-hub-seed
 sovereignty:
   external_calls: external
 "#;
@@ -834,6 +880,10 @@ sovereignty:
             let env = render_env(&manifest, "issuer").unwrap();
             assert!(env.contains("UNIDPP_ISSUER_PACK_SUITE=ecdsa-p256,sm2"));
             assert!(env.contains("UNIDPP_ISSUER_REGISTRY_URL=http://127.0.0.1:8390"));
+            let env = render_env(&manifest, "hub").unwrap();
+            assert!(env.contains("UNIDPP_HUB_BIND=127.0.0.1:8397"));
+            assert!(env.contains("UNIDPP_HUB_ID=unidpp-hub-pilot"));
+            assert!(env.contains("UNIDPP_HUB_SEED=test-hub-seed"));
             let env = render_env(&manifest, "registry").unwrap();
             assert!(env.contains("UNIDPP_REGISTRY_ADMIN_TOKEN=x"));
             // JSON round-trips through the same model.
@@ -1031,7 +1081,7 @@ sovereignty:
             // The deployment's service list drives discovery.
             assert_eq!(
                 manifest.service_names(),
-                vec!["registry", "log", "issuer", "gateway"]
+                vec!["registry", "log", "issuer", "gateway", "hub"]
             );
         });
     }
