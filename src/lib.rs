@@ -212,6 +212,10 @@ pub struct Services {
     pub console: Option<ServiceCommon>,
     #[serde(default)]
     pub resolver: Option<ResolverService>,
+    /// The translation hub (stateless signed relay; no state file —
+    /// nothing persists).
+    #[serde(default)]
+    pub hub: Option<ServiceCommon>,
 }
 
 /// The knobs every service shares.
@@ -574,6 +578,7 @@ impl OperatorManifest {
             "archive" => s.archive.as_ref()?.public_url.clone(),
             "console" => s.console.as_ref()?.public_url.clone(),
             "resolver" => s.resolver.as_ref()?.public_url.clone(),
+            "hub" => s.hub.as_ref()?.public_url.clone(),
             _ => None,
         }
     }
@@ -608,6 +613,9 @@ impl OperatorManifest {
         }
         if s.resolver.is_some() {
             names.push("resolver");
+        }
+        if s.hub.is_some() {
+            names.push("hub");
         }
         names
     }
