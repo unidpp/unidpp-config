@@ -328,6 +328,47 @@ pub struct GatewayService {
     /// The service's public URL when a tunnel/ingress fronts it.
     #[serde(default)]
     pub public_url: Option<String>,
+    /// The consumer-report channel's knobs (TODO.impl 224): the
+    /// journal path and the per-identifier rate window (absent/0 =
+    /// permissive).
+    #[serde(default)]
+    pub feedback: FeedbackPolicy,
+    /// The scan-token policy (TODO.impl 224): short-TTL bearer scan
+    /// tokens with issuance throttling, enforced at this edge tier.
+    /// Absent = open (public resolution is the default doctrine);
+    /// deployments under load opt in.
+    #[serde(default)]
+    pub scan_policy: Option<ScanPolicy>,
+}
+
+/// The consumer-report channel's deployment policy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields, default)]
+pub struct FeedbackPolicy {
+    /// Append-only JSONL journal path (absent = in-memory only).
+    pub journal: Option<String>,
+    /// Per-identifier reports per minute (0 = permissive).
+    pub rate_per_minute: usize,
+}
+
+impl Default for FeedbackPolicy {
+    fn default() -> Self {
+        FeedbackPolicy {
+            journal: None,
+            rate_per_minute: 0,
+        }
+    }
+}
+
+/// The scan-token policy (TODO.impl 224): the MobileQR bearer-token
+/// pattern as declared deployment data — never per-service code.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScanPolicy {
+    /// Token time-to-live, seconds (a scan session's window).
+    pub token_ttl_secs: u64,
+    /// Tokens issued per source per minute (the throttle).
+    pub issue_limit_per_minute: usize,
 }
 
 /// The resolver (the identifier-resolution service; its knobs are
@@ -771,6 +812,25 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
             if let Some(url) = &c.issuer_url {
                 vars.insert("UNIDPP_ISSUER_URL".into(), url.clone());
             }
+            if let Some(path) = &c.feedback.journal {
+                vars.insert("UNIDPP_GATEWAY_FEEDBACK_JOURNAL".into(), path.clone());
+            }
+            if c.feedback.rate_per_minute > 0 {
+                vars.insert(
+                    "UNIDPP_GATEWAY_FEEDBACK_RATE".into(),
+                    c.feedback.rate_per_minute.to_string(),
+                );
+            }
+            if let Some(scan) = &c.scan_policy {
+                vars.insert(
+                    "UNIDPP_GATEWAY_SCAN_TTL_SECS".into(),
+                    scan.token_ttl_secs.to_string(),
+                );
+                vars.insert(
+                    "UNIDPP_GATEWAY_SCAN_LIMIT_PER_MIN".into(),
+                    scan.issue_limit_per_minute.to_string(),
+                );
+            }
         }
         "archive" => {
             let c = services
@@ -1084,5 +1144,40 @@ sovereignty:
                 vec!["registry", "log", "issuer", "gateway", "hub"]
             );
         });
+    }
+    #[test]
+    fn gateway_renders_feedback_and_scan_policy() {
+        // TODO.impl 224: the edge policy is deployment data — the
+        // manifest declares it, render_env materializes it, the
+        // gateway reads it. Absent = open (defaults).
+        let yaml = r#"
+api_version: unidpp.org/v1
+deployment:
+  name: edge
+  profile: whitelabel
+  base_url: https://edge.example.org
+services:
+  gateway:
+    bind: 127.0.0.1:8094
+    feedback:
+      journal: /var/lib/unidpp/feedback.jsonl
+      rate_per_minute: 3
+    scan_policy:
+      token_ttl_secs: 300
+      issue_limit_per_minute: 60
+"#;
+        let manifest = load(yaml).unwrap();
+        let env = render_env(&manifest, "gateway").unwrap();
+        assert!(env.contains("UNIDPP_GATEWAY_FEEDBACK_JOURNAL=/var/lib/unidpp/feedback.jsonl"));
+        assert!(env.contains("UNIDPP_GATEWAY_FEEDBACK_RATE=3"));
+        assert!(env.contains("UNIDPP_GATEWAY_SCAN_TTL_SECS=300"));
+        assert!(env.contains("UNIDPP_GATEWAY_SCAN_LIMIT_PER_MIN=60"));
+        // The default posture stays open: no policy, no vars.
+        let yaml_open = yaml
+            .replace("    feedback:\n      journal: /var/lib/unidpp/feedback.jsonl\n      rate_per_minute: 3\n", "")
+            .replace("    scan_policy:\n      token_ttl_secs: 300\n      issue_limit_per_minute: 60\n", "");
+        let open = render_env(&load(&yaml_open).unwrap(), "gateway").unwrap();
+        assert!(!open.contains("SCAN_TTL"));
+        assert!(!open.contains("FEEDBACK_RATE"));
     }
 }
