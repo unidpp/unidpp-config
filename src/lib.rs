@@ -342,22 +342,13 @@ pub struct GatewayService {
 }
 
 /// The consumer-report channel's deployment policy.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields, default)]
 pub struct FeedbackPolicy {
     /// Append-only JSONL journal path (absent = in-memory only).
     pub journal: Option<String>,
     /// Per-identifier reports per minute (0 = permissive).
     pub rate_per_minute: usize,
-}
-
-impl Default for FeedbackPolicy {
-    fn default() -> Self {
-        FeedbackPolicy {
-            journal: None,
-            rate_per_minute: 0,
-        }
-    }
 }
 
 /// The scan-token policy (TODO.impl 224): the MobileQR bearer-token
