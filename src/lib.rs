@@ -195,21 +195,21 @@ pub struct Footer {
 #[serde(deny_unknown_fields, default)]
 pub struct Services {
     #[serde(default)]
-    pub registry: Option<ServiceCommon>,
+    pub registry: Option<RegistryService>,
     #[serde(default)]
-    pub trust: Option<ServiceCommon>,
+    pub trust: Option<TrustService>,
     #[serde(default)]
     pub log: Option<LogService>,
     #[serde(default)]
     pub issuer: Option<IssuerService>,
     #[serde(default)]
-    pub projector: Option<ServiceCommon>,
+    pub projector: Option<ProjectorService>,
     #[serde(default)]
     pub gateway: Option<GatewayService>,
     #[serde(default)]
-    pub archive: Option<ServiceCommon>,
+    pub archive: Option<ArchiveService>,
     #[serde(default)]
-    pub console: Option<ServiceCommon>,
+    pub console: Option<ConsoleService>,
     #[serde(default)]
     pub resolver: Option<ResolverService>,
     /// The translation hub (stateless signed relay; no state file —
@@ -264,6 +264,134 @@ pub struct ServiceCommon {
     pub public_url: Option<String>,
 }
 
+/// The registry (adds the seed knobs; absent = the service's own
+/// defaults).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RegistryService {
+    pub bind: String,
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    #[serde(default)]
+    pub state_file: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// Seed the development corpus on demand (`POST /admin/seed`).
+    #[serde(default)]
+    pub seed_on_demand: Option<bool>,
+    /// Seed the EXPRESS development corpus at start.
+    #[serde(default)]
+    pub seed_express: Option<bool>,
+}
+
+/// The trust service (adds the fixture and signing-seed knobs).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TrustService {
+    pub bind: String,
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    #[serde(default)]
+    pub state_file: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// Run without the seed fixtures (the no-seed posture).
+    #[serde(default)]
+    pub no_seed_fixtures: Option<bool>,
+    /// The development seed fixture.
+    #[serde(default)]
+    pub dev_seed: Option<String>,
+    /// The operator keyring's Ed25519 signing seed.
+    #[serde(default)]
+    pub sign_seed: Option<String>,
+    /// The operator keyring's P-256 signing seed.
+    #[serde(default)]
+    pub sign_seed_p256: Option<String>,
+}
+
+/// The projector (adds the resolution sources and the roll-up sealer).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectorService {
+    pub bind: String,
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    #[serde(default)]
+    pub state_file: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// The registry the lenses resolve against (absent = fixtures).
+    #[serde(default)]
+    pub registry_url: Option<String>,
+    /// The registry bearer token when the registry is guarded.
+    #[serde(default)]
+    pub registry_token: Option<String>,
+    /// The pinned passports directory (absent = the built-in fixture).
+    #[serde(default)]
+    pub passports_dir: Option<String>,
+    /// The pinned Primmel package directory.
+    #[serde(default)]
+    pub primmel_dir: Option<String>,
+    /// The roll-up sealing seed (absent = roll-ups off).
+    #[serde(default)]
+    pub rollup_seed: Option<String>,
+    /// The roll-up attester identity.
+    #[serde(default)]
+    pub rollup_attester: Option<String>,
+}
+
+/// The archive (adds the snapshot directory and the log anchor).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveService {
+    pub bind: String,
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    #[serde(default)]
+    pub state_file: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// The snapshots directory.
+    #[serde(default)]
+    pub snapshot_dir: Option<String>,
+    /// The development seed fixture.
+    #[serde(default)]
+    pub dev_seed: Option<String>,
+    /// The snapshot signing seed.
+    #[serde(default)]
+    pub sign_seed: Option<String>,
+    /// The transparency log to anchor snapshots to.
+    #[serde(default)]
+    pub log_url: Option<String>,
+    /// The log's bearer token when the log is guarded.
+    #[serde(default)]
+    pub log_token: Option<String>,
+    /// The log anchor timeout, milliseconds.
+    #[serde(default)]
+    pub log_timeout_ms: Option<u64>,
+}
+
+/// The console (adds the manifest path it loads).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConsoleService {
+    pub bind: String,
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    #[serde(default)]
+    pub state_file: Option<String>,
+    /// The service's public URL when a tunnel/ingress fronts it.
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// The operator manifest the console loads and edits.
+    #[serde(default)]
+    pub manifest: Option<String>,
+}
+
 /// The transparency log (adds the external anchor knob).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -283,6 +411,12 @@ pub struct LogService {
     /// RFC 3161 TSA endpoint; absent = no external anchoring.
     #[serde(default)]
     pub external_tsa_url: Option<String>,
+    /// The signature suite of the tree head (default ed25519).
+    #[serde(default)]
+    pub suite: Option<String>,
+    /// The tree-head signing seed.
+    #[serde(default)]
+    pub seed: Option<String>,
 }
 
 fn default_log_id() -> String {
@@ -309,6 +443,21 @@ pub struct IssuerService {
     /// The registry to forward registrations to.
     #[serde(default)]
     pub registry_url: Option<String>,
+    /// The registry bearer token when the registry is guarded.
+    #[serde(default)]
+    pub registry_token: Option<String>,
+    /// The maximum age of accepted upstream material, seconds.
+    #[serde(default)]
+    pub max_age: Option<u64>,
+    /// The event-log signing seed.
+    #[serde(default)]
+    pub event_seed: Option<String>,
+    /// The pack signing seed.
+    #[serde(default)]
+    pub pack_seed: Option<String>,
+    /// The service's general development seed.
+    #[serde(default)]
+    pub seed: Option<String>,
 }
 
 fn default_pack_suites() -> Vec<String> {
@@ -339,6 +488,9 @@ pub struct GatewayService {
     /// deployments under load opt in.
     #[serde(default)]
     pub scan_policy: Option<ScanPolicy>,
+    /// The upstream request timeout, milliseconds.
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
 }
 
 /// The consumer-report channel's deployment policy.
@@ -703,15 +855,21 @@ fn hex_color(field: &str, value: &str) -> Result<(), ConfigError> {
 /// configuration reads, so manifests drive unmodified binaries.
 pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, ConfigError> {
     let mut vars: BTreeMap<String, String> = BTreeMap::new();
-    let common = |vars: &mut BTreeMap<String, String>, prefix: &str, c: &ServiceCommon| {
-        vars.insert(format!("UNIDPP_{prefix}_BIND"), c.bind.clone());
-        if let Some(token) = &c.admin_token {
+    fn common(
+        vars: &mut BTreeMap<String, String>,
+        prefix: &str,
+        bind: &str,
+        admin_token: Option<&String>,
+        state_file: Option<&String>,
+    ) {
+        vars.insert(format!("UNIDPP_{prefix}_BIND"), bind.to_string());
+        if let Some(token) = admin_token {
             vars.insert(format!("UNIDPP_{prefix}_ADMIN_TOKEN"), token.clone());
         }
-        if let Some(state) = &c.state_file {
+        if let Some(state) = state_file {
             vars.insert(format!("UNIDPP_{prefix}_STATE_FILE"), state.clone());
         }
-    };
+    }
     let services = &manifest.services;
     match service {
         "registry" => {
@@ -719,7 +877,22 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
                 .registry
                 .as_ref()
                 .ok_or_else(|| ConfigError("this deployment has no registry block".into()))?;
-            common(&mut vars, "REGISTRY", c);
+            common(
+                &mut vars,
+                "REGISTRY",
+                &c.bind,
+                c.admin_token.as_ref(),
+                c.state_file.as_ref(),
+            );
+            if let Some(on_demand) = c.seed_on_demand {
+                vars.insert(
+                    "UNIDPP_REGISTRY_SEED_ON_DEMAND".into(),
+                    on_demand.to_string(),
+                );
+            }
+            if let Some(express) = c.seed_express {
+                vars.insert("UNIDPP_REGISTRY_SEED_EXPRESS".into(), express.to_string());
+            }
         }
         "resolver" => {
             // The resolver reads the generic UNIDPP_ names it has
@@ -739,14 +912,35 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
             if let Some(upstream) = &c.upstream {
                 vars.insert("UNIDPP_UPSTREAM".into(), upstream.clone());
             }
-            vars.insert("UNIDPP_CACHE_TTL".into(), c.cache_ttl_secs.to_string());
+            vars.insert("UNIDPP_CACHE_TTL_SECS".into(), c.cache_ttl_secs.to_string());
         }
         "trust" => {
             let c = services
                 .trust
                 .as_ref()
                 .ok_or_else(|| ConfigError("this deployment has no trust block".into()))?;
-            common(&mut vars, "TRUST", c);
+            common(
+                &mut vars,
+                "TRUST",
+                &c.bind,
+                c.admin_token.as_ref(),
+                c.state_file.as_ref(),
+            );
+            if let Some(no_fixtures) = c.no_seed_fixtures {
+                vars.insert(
+                    "UNIDPP_TRUST_NO_SEED_FIXTURES".into(),
+                    no_fixtures.to_string(),
+                );
+            }
+            if let Some(seed) = &c.dev_seed {
+                vars.insert("UNIDPP_TRUST_DEV_SEED".into(), seed.clone());
+            }
+            if let Some(seed) = &c.sign_seed {
+                vars.insert("UNIDPP_TRUST_SIGN_SEED".into(), seed.clone());
+            }
+            if let Some(seed) = &c.sign_seed_p256 {
+                vars.insert("UNIDPP_TRUST_SIGN_SEED_P256".into(), seed.clone());
+            }
         }
         "log" => {
             let c = services
@@ -763,6 +957,12 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
             }
             if let Some(tsa) = &c.external_tsa_url {
                 vars.insert("UNIDPP_LOG_EXTERNAL_TSA_URL".into(), tsa.clone());
+            }
+            if let Some(suite) = &c.suite {
+                vars.insert("UNIDPP_LOG_SUITE".into(), suite.clone());
+            }
+            if let Some(seed) = &c.seed {
+                vars.insert("UNIDPP_LOG_SEED".into(), seed.clone());
             }
         }
         "issuer" => {
@@ -783,13 +983,52 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
             if let Some(url) = &c.registry_url {
                 vars.insert("UNIDPP_ISSUER_REGISTRY_URL".into(), url.clone());
             }
+            if let Some(token) = &c.registry_token {
+                vars.insert("UNIDPP_ISSUER_REGISTRY_TOKEN".into(), token.clone());
+            }
+            if let Some(max_age) = c.max_age {
+                vars.insert("UNIDPP_ISSUER_MAX_AGE".into(), max_age.to_string());
+            }
+            if let Some(seed) = &c.event_seed {
+                vars.insert("UNIDPP_ISSUER_EVENT_SEED".into(), seed.clone());
+            }
+            if let Some(seed) = &c.pack_seed {
+                vars.insert("UNIDPP_ISSUER_PACK_SEED".into(), seed.clone());
+            }
+            if let Some(seed) = &c.seed {
+                vars.insert("UNIDPP_ISSUER_SEED".into(), seed.clone());
+            }
         }
         "projector" => {
             let c = services
                 .projector
                 .as_ref()
                 .ok_or_else(|| ConfigError("this deployment has no projector block".into()))?;
-            common(&mut vars, "PROJECTOR", c);
+            common(
+                &mut vars,
+                "PROJECTOR",
+                &c.bind,
+                c.admin_token.as_ref(),
+                c.state_file.as_ref(),
+            );
+            if let Some(url) = &c.registry_url {
+                vars.insert("UNIDPP_REGISTRY_URL".into(), url.clone());
+            }
+            if let Some(token) = &c.registry_token {
+                vars.insert("UNIDPP_PROJECTOR_REGISTRY_TOKEN".into(), token.clone());
+            }
+            if let Some(dir) = &c.passports_dir {
+                vars.insert("UNIDPP_PROJECTOR_PASSPORTS_DIR".into(), dir.clone());
+            }
+            if let Some(dir) = &c.primmel_dir {
+                vars.insert("UNIDPP_PROJECTOR_PRIMMEL_DIR".into(), dir.clone());
+            }
+            if let Some(seed) = &c.rollup_seed {
+                vars.insert("UNIDPP_PROJECTOR_ROLLUP_SEED".into(), seed.clone());
+            }
+            if let Some(attester) = &c.rollup_attester {
+                vars.insert("UNIDPP_PROJECTOR_ROLLUP_ATTESTER".into(), attester.clone());
+            }
         }
         "gateway" => {
             let c = services
@@ -822,20 +1061,56 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
                     scan.issue_limit_per_minute.to_string(),
                 );
             }
+            if let Some(ms) = c.timeout_ms {
+                vars.insert("UNIDPP_GATEWAY_TIMEOUT_MS".into(), ms.to_string());
+            }
         }
         "archive" => {
             let c = services
                 .archive
                 .as_ref()
                 .ok_or_else(|| ConfigError("this deployment has no archive block".into()))?;
-            common(&mut vars, "ARCHIVE", c);
+            common(
+                &mut vars,
+                "ARCHIVE",
+                &c.bind,
+                c.admin_token.as_ref(),
+                c.state_file.as_ref(),
+            );
+            if let Some(dir) = &c.snapshot_dir {
+                vars.insert("UNIDPP_ARCHIVE_SNAPSHOT_DIR".into(), dir.clone());
+            }
+            if let Some(seed) = &c.dev_seed {
+                vars.insert("UNIDPP_ARCHIVE_DEV_SEED".into(), seed.clone());
+            }
+            if let Some(seed) = &c.sign_seed {
+                vars.insert("UNIDPP_ARCHIVE_SIGN_SEED".into(), seed.clone());
+            }
+            if let Some(url) = &c.log_url {
+                vars.insert("UNIDPP_LOG_URL".into(), url.clone());
+            }
+            if let Some(token) = &c.log_token {
+                vars.insert("UNIDPP_ARCHIVE_LOG_TOKEN".into(), token.clone());
+            }
+            if let Some(ms) = c.log_timeout_ms {
+                vars.insert("UNIDPP_ARCHIVE_LOG_TIMEOUT_MS".into(), ms.to_string());
+            }
         }
         "console" => {
             let c = services
                 .console
                 .as_ref()
                 .ok_or_else(|| ConfigError("this deployment has no console block".into()))?;
-            common(&mut vars, "CONSOLE", c);
+            common(
+                &mut vars,
+                "CONSOLE",
+                &c.bind,
+                c.admin_token.as_ref(),
+                c.state_file.as_ref(),
+            );
+            if let Some(manifest) = &c.manifest {
+                vars.insert("UNIDPP_CONSOLE_MANIFEST".into(), manifest.clone());
+            }
         }
         "hub" => {
             let c = services
@@ -868,6 +1143,167 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The deployment contract at rest: for every manifest service, the
+    /// names `render_env` emits from a fully-populated manifest equal the
+    /// service's committed `x-unidpp-env-keys` (its `openapi.yaml`). The
+    /// pilot's live healthcheck proves the contract works; this test
+    /// proves the two declarations are the same set. Guarded: a standalone
+    /// checkout without the sibling services cannot see their contracts
+    /// and the test reports the skip (the e2e harness runs it in-family).
+    #[test]
+    fn the_services_env_keys_match_the_rendered_contract() {
+        let reference = r#"
+api_version: unidpp.org/v1
+deployment:
+  name: unidpp-contract-check
+  profile: reference
+  base_url: https://registry.unidpp.org
+branding:
+  organization: UniDPP
+  product_name: Contract Check
+services:
+  registry:
+    bind: 127.0.0.1:8390
+    admin_token: t
+    state_file: r.jsonl
+    seed_on_demand: true
+    seed_express: true
+  resolver:
+    bind: 127.0.0.1:8391
+    admin_token: t
+    upstream: http://127.0.0.1:8399
+    cache_ttl_secs: 300
+    state_file: v.jsonl
+  log:
+    bind: 127.0.0.1:8392
+    log_id: log-1
+    suite: ed25519
+    admin_token: t
+    state_file: l.jsonl
+    external_tsa_url: http://timestamp.example
+    seed: s
+  issuer:
+    bind: 127.0.0.1:8393
+    admin_token: t
+    state_file: i.jsonl
+    registry_url: http://127.0.0.1:8390
+    registry_token: t
+    max_age: 3600
+    event_seed: s
+    pack_seed: s
+    pack_suites: [ecdsa-p256]
+    seed: s
+  projector:
+    bind: 127.0.0.1:8394
+    registry_url: http://127.0.0.1:8390
+    registry_token: t
+    passports_dir: passports
+    primmel_dir: primmel
+    rollup_seed: s
+    rollup_attester: a
+  gateway:
+    bind: 127.0.0.1:8395
+    admin_token: t
+    issuer_url: http://127.0.0.1:8393
+    feedback:
+      journal: f.jsonl
+      rate_per_minute: 10
+    scan_policy:
+      token_ttl_secs: 600
+      issue_limit_per_minute: 100
+    timeout_ms: 5000
+  archive:
+    bind: 127.0.0.1:8396
+    admin_token: t
+    state_file: a.jsonl
+    snapshot_dir: snapshots
+    dev_seed: s
+    sign_seed: s
+    log_url: http://127.0.0.1:8392
+    log_token: t
+    log_timeout_ms: 5000
+  trust:
+    bind: 127.0.0.1:8398
+    admin_token: t
+    state_file: tr.jsonl
+    no_seed_fixtures: true
+    dev_seed: s
+    sign_seed: s
+    sign_seed_p256: s
+  hub:
+    bind: 127.0.0.1:8397
+    hub_id: hub-1
+    seed: s
+  console:
+    bind: 127.0.0.1:8399
+    manifest: unidpp-operator.yaml
+    admin_token: t
+sovereignty:
+  external_calls: external
+"#;
+        with_env(&[("UNIDPP_TEST_TOKEN", "t")], || {
+            let manifest = match load(reference) {
+                Ok(m) => m,
+                Err(e) => panic!("the contract-check manifest must parse: {e}"),
+            };
+            let mut checked = 0;
+            for service in [
+                "registry",
+                "resolver",
+                "log",
+                "issuer",
+                "projector",
+                "gateway",
+                "archive",
+                "trust",
+                "hub",
+                "console",
+            ] {
+                let sibling = format!("../unidpp-{service}/openapi.yaml");
+                let Ok(text) = std::fs::read_to_string(&sibling) else {
+                    eprintln!("env-contract: SKIP {service} (no sibling contract at {sibling})");
+                    continue;
+                };
+                checked += 1;
+                let rendered: std::collections::BTreeSet<String> = render_env(&manifest, service)
+                    .unwrap_or_else(|e| panic!("render_env({service}): {e}"))
+                    .lines()
+                    .map(|line| line.split('=').next().expect("KEY=value").to_string())
+                    .collect();
+                let doc: serde_json::Value = serde_yaml::from_str(&text).expect("contract parses");
+                let declared: std::collections::BTreeSet<String> = doc["info"]["x-unidpp-env-keys"]
+                    .as_array()
+                    .expect("x-unidpp-env-keys")
+                    .iter()
+                    .map(|v| v.as_str().expect("string").to_string())
+                    .collect();
+                // The gateway accepts a service-scoped alias for one
+                // task-facing name; the render emits the task-facing name.
+                let aliases: &[&str] = if service == "gateway" {
+                    &["UNIDPP_GATEWAY_ISSUER_URL"]
+                } else {
+                    &[]
+                };
+                for name in &rendered {
+                    assert!(
+                        declared.contains(name),
+                        "{service}: render emits {name} — the contract does not declare it"
+                    );
+                }
+                for name in &declared {
+                    if aliases.contains(&name.as_str()) {
+                        continue;
+                    }
+                    assert!(
+                        rendered.contains(name),
+                        "{service}: the contract declares {name} — the render never emits it"
+                    );
+                }
+            }
+            assert!(checked >= 1, "no sibling contracts found — nothing checked");
+        });
+    }
 
     const REFERENCE: &str = r#"
 api_version: unidpp.org/v1
@@ -1056,7 +1492,7 @@ sovereignty:
                 env.contains("UNIDPP_UPSTREAM=http://127.0.0.1:8080"),
                 "{env}"
             );
-            assert!(env.contains("UNIDPP_CACHE_TTL=60"), "{env}");
+            assert!(env.contains("UNIDPP_CACHE_TTL_SECS=60"), "{env}");
             // No block, no render.
             assert!(render_env(&load(REFERENCE).unwrap(), "resolver").is_err());
         });
@@ -1069,10 +1505,12 @@ sovereignty:
             schema["$schema"],
             "https://json-schema.org/draft/2020-12/schema"
         );
-        // Every model field the schema knows (spot the newest one).
-        let common = &schema["$defs"]["ServiceCommon"]["properties"];
-        assert!(common.get("public_url").is_some());
-        assert!(common.get("bind").is_some());
+        // Every model field the schema knows (spot the newest ones).
+        let trust = &schema["$defs"]["TrustService"]["properties"];
+        assert!(trust.get("sign_seed_p256").is_some());
+        assert!(trust.get("bind").is_some());
+        let projector = &schema["$defs"]["ProjectorService"]["properties"];
+        assert!(projector.get("rollup_seed").is_some());
         // The deny_unknown_fields doctrine holds on every object node
         // with properties — as strict as `load`, never looser.
         fn walk(node: &serde_json::Value) -> usize {
