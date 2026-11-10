@@ -67,6 +67,22 @@ pub struct Deployment {
     pub profile: Profile,
     /// The public base URL of the deployment's primary surface.
     pub base_url: String,
+    /// The one bind the deployment serves on (REARCH R1: every
+    /// module behind its prefix on one address). Absent means the
+    /// loopback default [`DEPLOYMENT_BIND`].
+    #[serde(default)]
+    pub bind: Option<String>,
+}
+
+/// The bind a deployment serves on when its manifest declares none.
+pub const DEPLOYMENT_BIND: &str = "127.0.0.1:8090";
+
+impl Deployment {
+    /// The effective bind: the declared one, else the loopback
+    /// default.
+    pub fn effective_bind(&self) -> &str {
+        self.bind.as_deref().unwrap_or(DEPLOYMENT_BIND)
+    }
 }
 
 /// Deployment profiles.
@@ -1143,6 +1159,29 @@ pub fn render_env(manifest: &OperatorManifest, service: &str) -> Result<String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_bind_resolves_explicit_then_default() {
+        let explicit = r#"
+api_version: unidpp.org/v1
+deployment:
+  name: b
+  profile: whitelabel
+  base_url: https://dpp.example.org
+  bind: 127.0.0.1:9443
+"#;
+        let m = load(explicit).expect("manifest loads");
+        assert_eq!(m.deployment.effective_bind(), "127.0.0.1:9443");
+        let defaulted = r#"
+api_version: unidpp.org/v1
+deployment:
+  name: b
+  profile: whitelabel
+  base_url: https://dpp.example.org
+"#;
+        let m = load(defaulted).expect("manifest loads");
+        assert_eq!(m.deployment.effective_bind(), DEPLOYMENT_BIND);
+    }
 
     /// The deployment contract at rest: for every manifest service, the
     /// names `render_env` emits from a fully-populated manifest equal the

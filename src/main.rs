@@ -3,6 +3,7 @@
 //!   unidpp-config validate <manifest>       parse + semantic checks
 //!   unidpp-config render-env <svc> <manifest>  the service's env block
 //!   unidpp-config services <manifest>       the deployment's services
+//!   unidpp-config bind <manifest>           the one bind the deployment serves on
 
 use std::process::ExitCode;
 
@@ -13,6 +14,7 @@ USAGE:
   unidpp-config validate <manifest>
   unidpp-config render-env <service> <manifest>
   unidpp-config services <manifest>
+  unidpp-config bind <manifest>
 
 Secrets substitute from the environment (${VAR}); an unset reference
 is an error. Unknown knobs are rejected.";
@@ -49,6 +51,12 @@ fn main() -> ExitCode {
         Some("services") if args.len() == 2 => {
             let text = read(&args[1]);
             unidpp_config::load(&text).map(|m| println!("{}", m.service_names().join("\n")))
+        }
+        Some("bind") if args.len() == 2 => {
+            let text = read(&args[1]);
+            unidpp_config::load(&text).map(|m| {
+                println!("{}", m.deployment.effective_bind());
+            })
         }
         _ => Err(unidpp_config::ConfigError(USAGE.to_string())),
     };
